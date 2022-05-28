@@ -15,7 +15,7 @@ include $(DEVKITARM)/ds_rules
 # all directories are relative to this makefile
 #---------------------------------------------------------------------------------
 BUILD		:=	build
-SOURCES 	:=	source
+SOURCES 	:=	source source/wifi source/sio
 INCLUDES	:=	include source build
 DATA		:=
  
@@ -43,8 +43,7 @@ ifdef USE_3DS_32MB
 	CFLAGS	+=  -DUSE_3DS_32MB
 endif
 
-CXXFLAGS	:=	$(CFLAGS) -fno-exceptions -fno-rtti
-
+CXXFLAGS	:=	$(CFLAGS) -fno-exceptions -fno-rtti -fno-threadsafe-statics 
 
 ASFLAGS	:=	-g $(ARCH)
 

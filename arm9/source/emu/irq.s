@@ -2,14 +2,12 @@
 
 #include "consts.s"
 
-.global fake_irq_flags
-fake_irq_flags:
-	.word 0
-
 .global read_address_ie
 read_address_ie:
 	ldr r13,= 0x4000210
 	ldrh r10, [r13]
+	ldrh r11, fake_irq_enable
+	orr r10, r11
 	//ldrb r11, [r13, #2]
 	//tst r11, #1
 	//orrne r10, #1
@@ -19,6 +17,8 @@ read_address_ie:
 read_address_ie_bottom8:
 	ldr r13,= 0x4000000
 	ldrb r10, [r13, #0x210]
+	ldrb r11, fake_irq_enable
+	orr r10, r11
 	//ldrb r11, [r13, #0x212]
 	//tst r11, #1
 	//orrne r10, #1
@@ -28,6 +28,8 @@ read_address_ie_bottom8:
 read_address_ie_top8:
 	ldr r13,= 0x4000000
 	ldrb r10, [r13, #0x211]
+	ldrb r11, (fake_irq_enable + 1)
+	orr r10, r11
 	bx lr
 
 .global read_address_if
@@ -62,6 +64,10 @@ read_address_if_top8:
 read_address_ie_if:
 	ldr r13,= 0x4000210
 	ldrh r12, [r13]
+
+	ldrh r11, fake_irq_enable
+	orr r12, r11
+
 	//ldrb r11, [r13, #2]
 	//tst r11, #1
 	//orrne r12, #1
@@ -78,6 +84,7 @@ read_address_ie_if:
 .global write_address_ie
 write_address_ie:
 	ldr r13,= 0x4000210
+	strh r11, fake_irq_enable
 	//tst r11, #1
 	//bic r11, #1
 	//orrne r11, r11, #(1 << 16)	//fifo sync as early vblank
@@ -89,6 +96,7 @@ write_address_ie_bottom8:
 	ldr r13,= 0x4000210
 	//tst r11, #1
 	//bic r11, #1
+	strb r11, fake_irq_enable
 	strb r11, [r13]
 	//ldrb r11, [r13, #2]
 	//biceq r11, r11, #1	//fifo sync as early vblank
@@ -96,9 +104,17 @@ write_address_ie_bottom8:
 	//strb r11, [r13, #2]
 	bx lr
 
+fake_irq_enable:
+	.word 0
+
+.global fake_irq_flags
+fake_irq_flags:
+	.word 0
+
 .global write_address_ie_top8
 write_address_ie_top8:
 	ldr r13,= 0x4000211
+	strb r11, (fake_irq_enable + 1)
 	strb r11, [r13]
 	bx lr
 
@@ -152,6 +168,7 @@ write_address_ie_if:
 	//orrne r12, r11, #(1 << 16)	//fifo sync as early vblank
 	//bic r12, //#0x3E0000
 	//str r12, [r13]
+	strh r11, fake_irq_enable
 	strh r11, [r13]
 	mov r11, r11, lsr #16
 	//tst r11, #1
@@ -182,7 +199,11 @@ irq_handler:
 	beq cap_control
 irq_cont:
 	ldr r1, [r12, #0x214]
+	ldrh r2, fake_irq_flags
+	orr r1, r2
 	ldr r3, [r12, #0x210]
+	ldrh r2, fake_irq_enable
+	orr r3, r2
 	and r1, r3
 	tst r1, #(1 << 1) //hblank
 		beq 1f
@@ -253,6 +274,21 @@ irq_handler_arm7_irq:
 	cmp r12, #3 //sdsave request
 	beq sdsave_request
 
+	//check for sio irq
+	ldr r12,= ((sio_work + 16) | 0x00800000)
+	ldrb r2, [r12]
+	cmp r2, #0
+	beq irq_handler_arm7_irq_snd
+	//reset sio irq flag
+	mov r2, #0
+	strb r2, [r12]
+	//set fake irq flag
+	ldr r2,= fake_irq_flags
+	ldr r1, [r2]
+	orr r1, #(1 << 7)
+	str r1, [r2]
+
+irq_handler_arm7_irq_snd:
 	ldr r12,= sound_sound_emu_work_uncached
 	ldrb lr, [r12, #(4 + (SOUND_EMU_QUEUE_LEN * 4) + 2)] //resp_write_ptr
 //1:
@@ -286,18 +322,21 @@ irq_handler_arm7_irq:
 	//b 1b
 
 	ldrb r2, [r12, #2] //req_write_ptr
-	ldrb r3, [r12, #3] //req_read_ptr
+	ldrb r3, [r12, #3] //req_read_ptr	
 	cmp r2, r3
 		bne 5f //request queue not empty, don't clear irq
 
 4:
 	mov r12, #0x04000000
 	mov r1, #(1 << 16)
+	mov r12, #0x04000000
 	str r1, [r12, #0x214]
 
 5:
 	mov r12, #0x04000000
 	ldr r3, [r12, #0x210]
+	ldr r2, fake_irq_enable
+	orr r3, r2
 
 	ldr r2,= fake_irq_flags
 	ldr r1, [r2]

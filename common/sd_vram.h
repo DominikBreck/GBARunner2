@@ -4,6 +4,7 @@
 #include "common_defs.s"
 
 #include "sound_emu.h"
+#include "sio_work.h"
 #include "save_work.h"
 
 #include "../arm9/source/fat/ff.h"
@@ -79,6 +80,7 @@ typedef struct
 	sd_info_t sd_info;
 	sound_emu_work_t sound_emu_work;
 	save_work_t save_work;
+	sio_work_t sioWork;
 	vu32 openMenuIrqFlag;
 	vu16 extKeys;
 	u8 tmpSector[512] __attribute__((aligned(32)));
